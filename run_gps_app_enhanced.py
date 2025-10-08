@@ -359,7 +359,7 @@ class GPSRequestHandler(http.server.SimpleHTTPRequestHandler):
         
         self.wfile.write(json.dumps(response).encode())
 
-def start_server():
+def start_server(port=None):
     """Start the enhanced GPS tracking server"""
     global movement_thread, running
     
@@ -370,7 +370,10 @@ def start_server():
     movement_thread = threading.Thread(target=movement_simulator, daemon=True)
     movement_thread.start()
     
-    port = 8000
+    # Use provided port or default to 8000, but prefer environment variable for Azure
+    if port is None:
+        port = int(os.environ.get('PORT', 8000))
+    
     try:
         with socketserver.TCPServer(("", port), GPSRequestHandler) as httpd:
             print("🚜 Enhanced GPS Tracking System - Development Server")
@@ -378,12 +381,28 @@ def start_server():
             print("👨‍💻 Created by Eng. Nawoar Ekkou & Walace Cagnin")
             print()
             print(f"🚀 Starting enhanced server on port {port}...")
-            print(f"✅ Server running at: http://localhost:{port}")
-            print()
-            print("🔗 Available URLs:")
-            print(f"   🚜 Forklift Demo: http://localhost:{port}/test/forklift_demo.html")
-            print(f"   📊 Dashboard: http://localhost:{port}/dashboard/")
-            print(f"   🌐 Static Demo: http://localhost:{port}/static_demo.html")
+            
+            # Different messages for local vs Azure deployment
+            if os.environ.get('WEBSITE_HOSTNAME'):
+                # Running on Azure App Service
+                hostname = os.environ.get('WEBSITE_HOSTNAME')
+                print(f"✅ Server running on Azure: https://{hostname}")
+                print()
+                print("🔗 Available URLs:")
+                print(f"   🚜 Forklift Demo: https://{hostname}/test/forklift_demo.html")
+                print(f"   📊 Dashboard: https://{hostname}/dashboard/")
+                print(f"   🌐 Static Demo: https://{hostname}/static_demo.html")
+                print(f"   🎨 Enhanced Demo: https://{hostname}/enhanced_demo.html")
+            else:
+                # Running locally
+                print(f"✅ Server running at: http://localhost:{port}")
+                print()
+                print("🔗 Available URLs:")
+                print(f"   🚜 Forklift Demo: http://localhost:{port}/test/forklift_demo.html")
+                print(f"   📊 Dashboard: http://localhost:{port}/dashboard/")
+                print(f"   🌐 Static Demo: http://localhost:{port}/static_demo.html")
+                print(f"   🎨 Enhanced Demo: http://localhost:{port}/enhanced_demo.html")
+            
             print()
             print("✨ NEW FEATURES:")
             print("   🎯 Animated forklift movement")

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Live Tracking Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="fas fa-satellite-dish"></i> GPS Live Tracking Dashboard</h1>
+                <div class="header-controls">
+                    <div class="connection-status">
+                        <span id="connection-indicator" class="status-indicator offline"></span>
+                        <span id="connection-text">Connecting...</span>
+                    </div>
+                    <button id="refresh-btn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="dashboard-main">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-microchip"></i> Devices</h3>
+                    <div class="device-controls">
+                        <input type="text" id="device-filter" placeholder="Filter devices..." class="device-filter">
+                        <button id="add-device-btn" class="btn btn-secondary">
+                            <i class="fas fa-plus"></i> Add Device
+                        </button>
+                    </div>
+                    <div id="device-list" class="device-list">
+                        <!-- Devices will be populated here -->
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-chart-line"></i> Statistics</h3>
+                    <div id="stats-panel" class="stats-panel">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Devices:</span>
+                            <span id="total-devices" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Active Devices:</span>
+                            <span id="active-devices" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Last Update:</span>
+                            <span id="last-update" class="stat-value">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-cog"></i> Settings</h3>
+                    <div class="settings-panel">
+                        <div class="setting-item">
+                            <label for="auto-refresh">Auto Refresh:</label>
+                            <input type="checkbox" id="auto-refresh" checked>
+                            <span class="setting-value">5s</span>
+                        </div>
+                        <div class="setting-item">
+                            <label for="show-trails">Show Trails:</label>
+                            <input type="checkbox" id="show-trails" checked>
+                        </div>
+                        <div class="setting-item">
+                            <label for="max-points">Max Trail Points:</label>
+                            <input type="number" id="max-points" value="50" min="10" max="200">
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Map Container -->
+            <main class="map-container">
+                <div id="map" class="map"></div>
+                
+                <!-- Map Controls -->
+                <div class="map-controls">
+                    <button id="center-all-btn" class="map-control-btn" title="Center All Devices">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </button>
+                    <button id="toggle-satellite-btn" class="map-control-btn" title="Toggle Satellite View">
+                        <i class="fas fa-globe"></i>
+                    </button>
+                    <button id="fullscreen-btn" class="map-control-btn" title="Fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+
+                <!-- Device Info Panel -->
+                <div id="device-info-panel" class="device-info-panel hidden">
+                    <div class="panel-header">
+                        <h4 id="info-device-name">Device Info</h4>
+                        <button id="close-info-btn" class="close-btn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content" id="device-info-content">
+                        <!-- Device info will be populated here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div id="add-device-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Device</h3>
+                <button id="close-modal-btn" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="add-device-form">
+                    <div class="form-group">
+                        <label for="new-device-id">Device ID:</label>
+                        <input type="text" id="new-device-id" required 
+                               pattern="[A-Za-z0-9_\-\.]+" 
+                               placeholder="e.g., ESP32_001">
+                    </div>
+                    <div class="form-group">
+                        <label for="device-name">Display Name:</label>
+                        <input type="text" id="device-name" required 
+                               placeholder="e.g., Vehicle 1">
+                    </div>
+                    <div class="form-group">
+                        <label for="device-color">Color:</label>
+                        <input type="color" id="device-color" value="#3498db">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-device-btn" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Device</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading GPS data...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

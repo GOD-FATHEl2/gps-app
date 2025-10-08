@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚜 Forklift Fleet Management Dashboard - Live Demo</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="../dashboard/css/dashboard.css">
+    <style>
+        /* Additional forklift-specific styling */
+        .forklift-header {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin: -1rem -1rem 1rem -1rem;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .forklift-zone {
+            background: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid #FF6B35;
+        }
+        
+        .demo-notice {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 1rem;
+            margin: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .forklift-marker {
+            background: #FF6B35 !important;
+            border: 3px solid white !important;
+            box-shadow: 0 0 15px rgba(255, 107, 53, 0.6) !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="fas fa-truck"></i> 🚜 Forklift Fleet Management Dashboard - LIVE DEMO</h1>
+                <div class="header-controls">
+                    <div class="connection-status">
+                        <span id="connection-indicator" class="status-indicator connecting"></span>
+                        <span id="connection-text">Initializing...</span>
+                    </div>
+                    <button id="refresh-btn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> Refresh Fleet
+                    </button>
+                    <button id="test-data-btn" class="btn" style="background: #FF6B35; color: white;">
+                        <i class="fas fa-database"></i> Generate Test Data
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Demo Notice -->
+        <div class="demo-notice">
+            🚜 LIVE DEMO: 4 Forklifts Operating in Warehouse Facility | Real-time GPS Tracking by Eng. Nawoar Ekkou & Walace Cagnin
+        </div>
+
+        <!-- Main Content -->
+        <div class="dashboard-main">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <div class="forklift-header">
+                        <h3><i class="fas fa-truck"></i> Active Forklifts</h3>
+                        <small>Live Fleet Monitoring</small>
+                    </div>
+                    
+                    <div class="forklift-zone">
+                        <strong>📍 Warehouse Layout:</strong><br>
+                        <small>Loading Dock A | Storage Area B<br>
+                        Shipping Dock C | Inventory Zone D</small>
+                    </div>
+                    
+                    <div class="device-controls">
+                        <input type="text" id="device-filter" placeholder="Filter forklifts..." class="device-filter">
+                    </div>
+                    <div id="device-list" class="device-list">
+                        <!-- Forklifts will be populated here -->
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-chart-line"></i> Fleet Statistics</h3>
+                    <div id="stats-panel" class="stats-panel">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Forklifts:</span>
+                            <span id="total-devices" class="stat-value">4</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Active Now:</span>
+                            <span id="active-devices" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Average Speed:</span>
+                            <span id="avg-speed" class="stat-value">-- km/h</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Last Update:</span>
+                            <span id="last-update" class="stat-value">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-cog"></i> Fleet Settings</h3>
+                    <div class="settings-panel">
+                        <div class="setting-item">
+                            <label for="auto-refresh">Auto Refresh:</label>
+                            <input type="checkbox" id="auto-refresh" checked>
+                            <span class="setting-value">3s</span>
+                        </div>
+                        <div class="setting-item">
+                            <label for="show-trails">Show Paths:</label>
+                            <input type="checkbox" id="show-trails" checked>
+                        </div>
+                        <div class="setting-item">
+                            <label for="show-zones">Show Zones:</label>
+                            <input type="checkbox" id="show-zones" checked>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-info-circle"></i> Demo Info</h3>
+                    <div class="settings-panel">
+                        <small>
+                            <strong>🚜 Forklift Fleet:</strong><br>
+                            • Alpha - Loading Dock A<br>
+                            • Beta - Storage Area B<br>
+                            • Gamma - Shipping Dock C<br>
+                            • Delta - Inventory Zone D<br><br>
+                            
+                            <strong>📡 Live Updates:</strong><br>
+                            Real-time GPS tracking with 3-second refresh rate.<br><br>
+                            
+                            <strong>👨‍💻 Created by:</strong><br>
+                            Eng. Nawoar Ekkou &<br>
+                            Walace Cagnin
+                        </small>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Map Container -->
+            <main class="map-container">
+                <div id="map" class="map"></div>
+                
+                <!-- Map Controls -->
+                <div class="map-controls">
+                    <button id="center-all-btn" class="map-control-btn" title="Center All Forklifts">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </button>
+                    <button id="toggle-satellite-btn" class="map-control-btn" title="Toggle Satellite View">
+                        <i class="fas fa-globe"></i>
+                    </button>
+                    <button id="fullscreen-btn" class="map-control-btn" title="Fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+
+                <!-- Forklift Info Panel -->
+                <div id="device-info-panel" class="device-info-panel hidden">
+                    <div class="panel-header" style="background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);">
+                        <h4 id="info-device-name">Forklift Info</h4>
+                        <button id="close-info-btn" class="close-btn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content" id="device-info-content">
+                        <!-- Forklift info will be populated here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-truck fa-spin"></i>
+            <p>Loading forklift fleet data...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Forklift-specific configuration
+        const FORKLIFT_CONFIG = {
+            refreshInterval: 3000, // 3 seconds for demo
+            forklifts: {
+                'FORKLIFT_001': { name: 'Forklift Alpha', zone: 'Main Building', color: '#FF6B35' },
+                'FORKLIFT_002': { name: 'Forklift Beta', zone: 'Loading Area', color: '#4ECDC4' },
+                'FORKLIFT_003': { name: 'Forklift Gamma', zone: 'Storage Area', color: '#45B7D1' },
+                'FORKLIFT_004': { name: 'Forklift Delta', zone: 'Parking Area', color: '#96CEB4' }
+            }
+        };
+
+        // Pre-configure forklifts in localStorage
+        localStorage.setItem('gps-dashboard-devices', JSON.stringify(FORKLIFT_CONFIG.forklifts));
+    </script>
+    <script src="../dashboard/js/dashboard.js"></script>
+    <script>
+        // Override refresh interval for demo
+        if (window.dashboard) {
+            window.dashboard.refreshInterval = FORKLIFT_CONFIG.refreshInterval;
+        }
+
+        // Add test data generation button
+        document.getElementById('test-data-btn').addEventListener('click', function() {
+            window.open('../test/forklift_test_generator.php', '_blank');
+        });
+
+        // Custom forklift markers
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add custom CSS for forklift markers
+            const style = document.createElement('style');
+            style.textContent += `
+                .forklift-marker {
+                    background: #FF6B35 !important;
+                    border: 3px solid white !important;
+                    box-shadow: 0 0 15px rgba(255, 107, 53, 0.6) !important;
+                    animation: forklift-pulse 2s infinite;
+                }
+                
+                @keyframes forklift-pulse {
+                    0% { box-shadow: 0 0 15px rgba(255, 107, 53, 0.6); }
+                    50% { box-shadow: 0 0 25px rgba(255, 107, 53, 0.8); }
+                    100% { box-shadow: 0 0 15px rgba(255, 107, 53, 0.6); }
+                }
+            `;
+            document.head.appendChild(style);
+        });
+    </script>
+</body>
+</html>

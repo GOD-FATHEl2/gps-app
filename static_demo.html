@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚜 Forklift GPS Demo - Static Visualization</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: #f5f6fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .demo-container {
+            display: flex;
+            max-width: 1400px;
+            margin: 2rem auto;
+            gap: 2rem;
+            padding: 0 1rem;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        
+        .map-container {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        
+        .forklift-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #FF6B35;
+            transition: all 0.3s ease;
+        }
+        
+        .forklift-item:hover {
+            background: #e3f2fd;
+            transform: translateX(5px);
+        }
+        
+        .forklift-name {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .forklift-details {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .status-online {
+            color: #4CAF50;
+            font-weight: 600;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .creators {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            text-align: center;
+        }
+        
+        .feature-list {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
+        .feature-list h4 {
+            color: #FF6B35;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .setup-instructions {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 2rem auto;
+            max-width: 1400px;
+        }
+        
+        .forklift-marker {
+            background: #FF6B35;
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(255, 107, 53, 0.6);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 15px rgba(255, 107, 53, 0.6); }
+            50% { box-shadow: 0 0 25px rgba(255, 107, 53, 0.8); }
+            100% { box-shadow: 0 0 15px rgba(255, 107, 53, 0.6); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-truck"></i> 🚜 Forklift GPS Tracking System - Göteborg Facility</h1>
+        <h2>👨‍💻 Created & Invented by Eng. Nawoar Ekkou & Walace Cagnin</h2>
+        <p>Real-time GPS tracking at Personalvägen 21, 418 78 Göteborg, Sweden</p>
+    </div>
+    
+    <div class="setup-instructions">
+        <h3><i class="fas fa-info-circle"></i> Demo Instructions</h3>
+        <p><strong>To see the LIVE system with real PHP backend:</strong></p>
+        <ol>
+            <li>Install PHP on your system (see TESTING_GUIDE.md)</li>
+            <li>Run: <code>php -S localhost:8000 -t .</code> in the Gps-System folder</li>
+            <li>Visit: <code>http://localhost:8000/test/forklift_demo.html</code></li>
+        </ol>
+        <p>This static demo shows the UI design and layout. The live version includes real-time GPS updates!</p>
+    </div>
+    
+    <div class="demo-container">
+        <div class="sidebar">
+            <h3><i class="fas fa-truck"></i> Active Forklifts</h3>
+            
+            <div class="forklift-item">
+                <div class="forklift-name">🚜 Forklift Alpha</div>
+                <div class="forklift-details">
+                    ID: FORKLIFT_001<br>
+                    Zone: Loading Dock A<br>
+                    Status: <span class="status-online">Online</span><br>
+                    Speed: 8.5 km/h<br>
+                    Last Update: 2 seconds ago
+                </div>
+            </div>
+            
+            <div class="forklift-item">
+                <div class="forklift-name">🚜 Forklift Beta</div>
+                <div class="forklift-details">
+                    ID: FORKLIFT_002<br>
+                    Zone: Storage Area B<br>
+                    Status: <span class="status-online">Online</span><br>
+                    Speed: 6.2 km/h<br>
+                    Last Update: 1 second ago
+                </div>
+            </div>
+            
+            <div class="forklift-item">
+                <div class="forklift-name">🚜 Forklift Gamma</div>
+                <div class="forklift-details">
+                    ID: FORKLIFT_003<br>
+                    Zone: Shipping Dock C<br>
+                    Status: <span class="status-online">Online</span><br>
+                    Speed: 12.8 km/h<br>
+                    Last Update: 3 seconds ago
+                </div>
+            </div>
+            
+            <div class="forklift-item">
+                <div class="forklift-name">🚜 Forklift Delta</div>
+                <div class="forklift-details">
+                    ID: FORKLIFT_004<br>
+                    Zone: Inventory Zone D<br>
+                    Status: <span class="status-online">Online</span><br>
+                    Speed: 4.3 km/h<br>
+                    Last Update: 5 seconds ago
+                </div>
+            </div>
+            
+            <div class="creators">
+                <h4>🏆 System Creators</h4>
+                <strong>Eng. Nawoar Ekkou</strong><br>
+                Lead Developer & Architect<br><br>
+                <strong>Walace Cagnin</strong><br>
+                Lead Supervising & Partner
+            </div>
+            
+            <div class="feature-list">
+                <h4>🚀 System Features</h4>
+                <ul>
+                    <li>⚡ Real-time GPS tracking (2-second updates)</li>
+                    <li>🗜️ 70% bandwidth compression</li>
+                    <li>🔒 Military-grade security</li>
+                    <li>📱 Responsive web dashboard</li>
+                    <li>🛰️ Multi-device support</li>
+                    <li>📊 Live analytics & metrics</li>
+                    <li>🎨 Professional UI/UX</li>
+                    <li>⚙️ Arduino/ESP32 integration</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+    
+    <div class="stats-grid" style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
+        <div class="stat-card">
+            <div class="stat-value">4</div>
+            <div>Active Forklifts</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">8.0</div>
+            <div>Avg Speed (km/h)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">100%</div>
+            <div>System Uptime</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">156</div>
+            <div>GPS Points Today</div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on Göteborg, Sweden
+        const map = L.map('map').setView([57.6870, 11.9755], 16);
+        
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Forklift locations around Personalvägen 21, Göteborg
+        const forklifts = [
+            { id: 'FORKLIFT_001', name: 'Alpha', lat: 57.6870, lng: 11.9755, zone: 'Main Building' },
+            { id: 'FORKLIFT_002', name: 'Beta', lat: 57.6872, lng: 11.9750, zone: 'Loading Area' },
+            { id: 'FORKLIFT_003', name: 'Gamma', lat: 57.6868, lng: 11.9760, zone: 'Storage Area' },
+            { id: 'FORKLIFT_004', name: 'Delta', lat: 57.6875, lng: 11.9745, zone: 'Parking Area' }
+        ];
+        
+        // Add forklift markers
+        forklifts.forEach((forklift, index) => {
+            const icon = L.divIcon({
+                className: 'forklift-marker',
+                html: `<i class="fas fa-truck"></i>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            
+            const marker = L.marker([forklift.lat, forklift.lng], { icon })
+                .bindPopup(`
+                    <div style="text-align: center;">
+                        <h4>🚜 Forklift ${forklift.name}</h4>
+                        <strong>ID:</strong> ${forklift.id}<br>
+                        <strong>Zone:</strong> ${forklift.zone}<br>
+                        <strong>Status:</strong> <span style="color: #4CAF50;">Online</span><br>
+                        <strong>Speed:</strong> ${(Math.random() * 10 + 5).toFixed(1)} km/h<br>
+                        <strong>Satellites:</strong> ${Math.floor(Math.random() * 5 + 7)}<br>
+                        <strong>Last Update:</strong> ${Math.floor(Math.random() * 10 + 1)} seconds ago
+                    </div>
+                `)
+                .addTo(map);
+        });
+        
+        // Add warehouse zones
+        const zones = [
+            { name: 'Loading Dock A', coords: [[40.7587, -73.9854], [40.7591, -73.9854], [40.7591, -73.9848], [40.7587, -73.9848]] },
+            { name: 'Storage Area B', coords: [[40.7590, -73.9848], [40.7594, -73.9848], [40.7594, -73.9842], [40.7590, -73.9842]] },
+            { name: 'Shipping Dock C', coords: [[40.7583, -73.9858], [40.7587, -73.9858], [40.7587, -73.9852], [40.7583, -73.9852]] },
+            { name: 'Inventory Zone D', coords: [[40.7593, -73.9843], [40.7597, -73.9843], [40.7597, -73.9837], [40.7593, -73.9837]] }
+        ];
+        
+        zones.forEach((zone, index) => {
+            const colors = ['#FF6B35', '#4ECDC4', '#45B7D1', '#96CEB4'];
+            L.polygon(zone.coords, {
+                color: colors[index],
+                fillColor: colors[index],
+                fillOpacity: 0.2,
+                weight: 2
+            }).bindPopup(`<strong>${zone.name}</strong>`).addTo(map);
+        });
+        
+        // Simulate movement (static demo)
+        setInterval(() => {
+            console.log('🚜 In live version: GPS positions would update here every 3 seconds');
+        }, 3000);
+    </script>
+</body>
+</html>

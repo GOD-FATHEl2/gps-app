@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚜 Enhanced GPS Forklift Tracking - Animated Demo</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 1.8rem;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .attribution {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+            padding: 0.5rem;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        #map {
+            height: calc(100vh - 120px);
+            width: 100%;
+        }
+
+        .forklift-info {
+            position: absolute;
+            top: 140px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .forklift-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.8rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            background: rgba(248, 249, 250, 0.8);
+        }
+
+        .forklift-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 0.8rem;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .forklift-details h4 {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #2c3e50;
+        }
+
+        .forklift-details p {
+            margin: 0;
+            font-size: 0.75rem;
+            color: #7f8c8d;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: auto;
+            animation: pulse 2s infinite;
+        }
+
+        .status-moving {
+            background: #27ae60;
+        }
+
+        .status-idle {
+            background: #f39c12;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            z-index: 1000;
+            font-size: 0.8rem;
+        }
+
+        .legend h4 {
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .legend-line {
+            width: 20px;
+            height: 3px;
+            margin-right: 0.5rem;
+            border-radius: 2px;
+        }
+
+        /* Custom forklift icon */
+        .forklift-icon {
+            color: white;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* Trail styles */
+        .trail-line {
+            stroke-width: 3;
+            stroke-opacity: 0.7;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚜 Enhanced GPS Forklift Tracking System</h1>
+        <p>Live Animated Demo - Personalvägen 21, 418 78 Göteborg, Sweden</p>
+    </div>
+    
+    <div class="attribution">
+        🏗️ Engineered by Nawoar Ekkou & Walace Cagnin | GPS Innovation & Fleet Management Solutions
+    </div>
+
+    <div id="map"></div>
+
+    <div class="forklift-info">
+        <h3 style="margin-bottom: 1rem; color: #2c3e50;">🚜 Active Forklifts</h3>
+        <div id="forklift-list"></div>
+    </div>
+
+    <div class="legend">
+        <h4>🗺️ Trail Legend</h4>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #FF6B35;"></div>
+            <span>Alpha (Main Building)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #4ECDC4;"></div>
+            <span>Beta (Loading Area)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #45B7D1;"></div>
+            <span>Gamma (Storage Area)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #96CEB4;"></div>
+            <span>Delta (Parking Area)</span>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on Göteborg, Sweden
+        const map = L.map('map').setView([57.6870, 11.9755], 18);
+        
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Forklift configuration with colors and trails
+        const FORKLIFT_CONFIG = {
+            'FORKLIFT_001': { 
+                name: 'Alpha', 
+                color: '#FF6B35', 
+                zone: 'Main Building',
+                destinations: [
+                    {lat: 57.6870, lng: 11.9755, name: 'Main Building'},
+                    {lat: 57.6872, lng: 11.9750, name: 'Loading Dock'},
+                    {lat: 57.6875, lng: 11.9745, name: 'Parking Area'},
+                    {lat: 57.6873, lng: 11.9753, name: 'Service Bay'}
+                ]
+            },
+            'FORKLIFT_002': { 
+                name: 'Beta', 
+                color: '#4ECDC4', 
+                zone: 'Loading Area',
+                destinations: [
+                    {lat: 57.6872, lng: 11.9750, name: 'Loading Area'},
+                    {lat: 57.6868, lng: 11.9760, name: 'Storage Area'},
+                    {lat: 57.6870, lng: 11.9755, name: 'Main Building'},
+                    {lat: 57.6874, lng: 11.9748, name: 'Dock Exit'}
+                ]
+            },
+            'FORKLIFT_003': { 
+                name: 'Gamma', 
+                color: '#45B7D1', 
+                zone: 'Storage Area',
+                destinations: [
+                    {lat: 57.6868, lng: 11.9760, name: 'Storage Area'},
+                    {lat: 57.6870, lng: 11.9757, name: 'Inventory Check'},
+                    {lat: 57.6872, lng: 11.9762, name: 'Warehouse Exit'},
+                    {lat: 57.6866, lng: 11.9758, name: 'Cold Storage'}
+                ]
+            },
+            'FORKLIFT_004': { 
+                name: 'Delta', 
+                color: '#96CEB4', 
+                zone: 'Parking Area',
+                destinations: [
+                    {lat: 57.6875, lng: 11.9745, name: 'Parking Area'},
+                    {lat: 57.6873, lng: 11.9748, name: 'Service Bay'},
+                    {lat: 57.6877, lng: 11.9742, name: 'Fuel Station'},
+                    {lat: 57.6876, lng: 11.9747, name: 'Charging Station'}
+                ]
+            }
+        };
+
+        // Store markers, trails, and states
+        const forkliftMarkers = {};
+        const forkliftTrails = {};
+        const forkliftStates = {};
+
+        // Initialize forklift states
+        function initializeForklifts() {
+            Object.keys(FORKLIFT_CONFIG).forEach(deviceId => {
+                const config = FORKLIFT_CONFIG[deviceId];
+                forkliftStates[deviceId] = {
+                    currentLat: config.destinations[0].lat,
+                    currentLng: config.destinations[0].lng,
+                    targetDestination: 0,
+                    speed: 0.8 + Math.random() * 0.4,
+                    status: 'moving'
+                };
+                forkliftTrails[deviceId] = [];
+            });
+        }
+
+        // Create custom forklift icon
+        function createForkliftIcon(color, rotation = 0) {
+            return L.divIcon({
+                html: `<div style="
+                    background: ${color};
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transform: rotate(${rotation}deg);
+                ">
+                    <span style="color: white; font-size: 12px; font-weight: bold;">🚜</span>
+                </div>`,
+                className: 'forklift-icon',
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+        }
+
+        // Update forklift position with animation
+        function updateForkliftPosition(deviceId) {
+            const config = FORKLIFT_CONFIG[deviceId];
+            const state = forkliftStates[deviceId];
+            
+            // Get current destination
+            const destination = config.destinations[state.targetDestination];
+            
+            // Calculate movement
+            const latDiff = destination.lat - state.currentLat;
+            const lngDiff = destination.lng - state.currentLng;
+            const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+            
+            // Check if reached destination
+            if (distance < 0.0001) {
+                state.targetDestination = (state.targetDestination + 1) % config.destinations.length;
+                state.status = 'idle';
+                setTimeout(() => {
+                    state.status = 'moving';
+                }, 1000); // Pause for 1 second
+                return;
+            }
+            
+            // Move towards destination
+            const moveSpeed = state.speed * 0.00008;
+            const moveRatio = Math.min(moveSpeed / distance, 1.0);
+            
+            state.currentLat += latDiff * moveRatio;
+            state.currentLng += lngDiff * moveRatio;
+            
+            // Add some variation
+            state.currentLat += (Math.random() - 0.5) * 0.00003;
+            state.currentLng += (Math.random() - 0.5) * 0.00003;
+            
+            // Calculate heading
+            const heading = Math.atan2(lngDiff, latDiff) * 180 / Math.PI;
+            
+            // Add to trail
+            forkliftTrails[deviceId].push({
+                lat: state.currentLat,
+                lng: state.currentLng,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Keep only last 25 points
+            if (forkliftTrails[deviceId].length > 25) {
+                forkliftTrails[deviceId].shift();
+            }
+            
+            // Update marker
+            const newPos = [state.currentLat, state.currentLng];
+            if (forkliftMarkers[deviceId]) {
+                forkliftMarkers[deviceId].setLatLng(newPos);
+                forkliftMarkers[deviceId].setIcon(createForkliftIcon(config.color, heading));
+            } else {
+                forkliftMarkers[deviceId] = L.marker(newPos, {
+                    icon: createForkliftIcon(config.color, heading)
+                }).addTo(map);
+                
+                forkliftMarkers[deviceId].bindPopup(`
+                    <div style="text-align: center;">
+                        <h3 style="color: ${config.color}; margin: 0;">${config.name}</h3>
+                        <p style="margin: 5px 0;"><strong>Zone:</strong> ${config.zone}</p>
+                        <p style="margin: 5px 0;"><strong>Destination:</strong> ${destination.name}</p>
+                        <p style="margin: 5px 0;"><strong>Status:</strong> ${state.status}</p>
+                        <div style="width: 20px; height: 20px; background: ${config.color}; border-radius: 50%; margin: 10px auto; border: 2px solid white;"></div>
+                    </div>
+                `);
+            }
+            
+            // Update trail
+            updateTrail(deviceId);
+        }
+
+        // Update trail visualization
+        function updateTrail(deviceId) {
+            const config = FORKLIFT_CONFIG[deviceId];
+            const trail = forkliftTrails[deviceId];
+            
+            if (trail.length < 2) return;
+            
+            // Remove old trail
+            if (window[`trail_${deviceId}`]) {
+                map.removeLayer(window[`trail_${deviceId}`]);
+            }
+            
+            // Create new trail
+            const trailCoords = trail.map(point => [point.lat, point.lng]);
+            window[`trail_${deviceId}`] = L.polyline(trailCoords, {
+                color: config.color,
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '5, 5'
+            }).addTo(map);
+        }
+
+        // Update forklift info panel
+        function updateForkliftInfo() {
+            const listElement = document.getElementById('forklift-list');
+            listElement.innerHTML = '';
+            
+            Object.keys(FORKLIFT_CONFIG).forEach(deviceId => {
+                const config = FORKLIFT_CONFIG[deviceId];
+                const state = forkliftStates[deviceId];
+                const destination = config.destinations[state.targetDestination];
+                
+                const item = document.createElement('div');
+                item.className = 'forklift-item';
+                item.innerHTML = `
+                    <div class="forklift-color" style="background: ${config.color};"></div>
+                    <div class="forklift-details">
+                        <h4>${config.name} (${deviceId})</h4>
+                        <p>📍 ${destination.name}</p>
+                        <p>⚡ ${state.status}</p>
+                    </div>
+                    <div class="status-indicator status-${state.status}"></div>
+                `;
+                listElement.appendChild(item);
+            });
+        }
+
+        // Animation loop
+        function animate() {
+            Object.keys(FORKLIFT_CONFIG).forEach(deviceId => {
+                updateForkliftPosition(deviceId);
+            });
+            updateForkliftInfo();
+        }
+
+        // Initialize and start animation
+        initializeForklifts();
+        
+        // Start animation loop
+        setInterval(animate, 2000); // Update every 2 seconds
+        animate(); // Initial call
+
+        // Add some facility markers
+        L.marker([57.6870, 11.9755]).addTo(map)
+            .bindPopup('<b>Main Building</b><br>Personalvägen 21, Göteborg');
+        
+        L.marker([57.6872, 11.9750]).addTo(map)
+            .bindPopup('<b>Loading Area</b><br>Goods In/Out');
+        
+        L.marker([57.6868, 11.9760]).addTo(map)
+            .bindPopup('<b>Storage Area</b><br>Warehouse Storage');
+        
+        L.marker([57.6875, 11.9745]).addTo(map)
+            .bindPopup('<b>Parking Area</b><br>Vehicle Parking');
+
+        console.log('🚜 Enhanced GPS Forklift Tracking System Loaded');
+        console.log('👨‍💻 Created by Eng. Nawoar Ekkou & Walace Cagnin');
+    </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/68aae588-09f5-43cf-b974-42c4cc5f7a94/resourceGroups/hra-safety-app/providers/Microsoft.Web/sites/hra",
+    "appService.deploySubpath": "HRA"
+}

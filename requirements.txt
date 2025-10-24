@@ -1,0 +1,22 @@
+# GPS Tracking System Requirements
+# Created by Eng. Nawoar Ekkou & Walace Cagnin
+
+# No external dependencies required for the enhanced GPS tracking system
+# The system uses only Python standard library modules:
+# - http.server (for web server)
+# - socketserver (for TCP server)
+# - json (for JSON handling)
+# - threading (for background movement simulation)
+# - math (for coordinate calculations)
+# - random (for realistic movement variation)
+# - datetime (for timestamps)
+# - time (for delays and timing)
+# - os (for file operations)
+# - urllib.parse (for URL parsing)
+
+# If you want to add additional features in the future, uncomment these:
+# requests>=2.31.0          # For external API calls
+# flask>=2.3.0              # Alternative web framework
+# gunicorn>=21.2.0          # Production WSGI server
+# numpy>=1.24.0             # Advanced mathematical operations
+# pandas>=2.0.0             # Data analysis for GPS logs

@@ -1,53 +1,49 @@
 #!/usr/bin/env pwsh
-# Azure Deployment Script for HRA Safety Management System
+# Azure Container Apps Deployment Script for HRA Safety Management System
 
-# Configuration
-$resourceGroup = "rg-hra-safety"
-$appServicePlan = "plan-hra-safety"
-$webAppName = "hra-safety-app"
-$location = "West Europe"
-$sku = "B1"
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$GitHubUsername,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$ResourceGroup = "rg-hra-safety",
+    
+    [Parameter(Mandatory=$false)]
+    [string]$Location = "West Europe",
+    
+    [Parameter(Mandatory=$false)]
+    [string]$AppName = "hra-safety-app"
+)
 
-Write-Host "🚀 Starting Azure deployment for HRA Safety Management System" -ForegroundColor Green
+Write-Host "🚀 Starting Azure Container Apps deployment for HRA Safety System" -ForegroundColor Green
+Write-Host "📋 Configuration:" -ForegroundColor Cyan
+Write-Host "   Resource Group: $ResourceGroup" -ForegroundColor White
+Write-Host "   Location: $Location" -ForegroundColor White
+Write-Host "   App Name: $AppName" -ForegroundColor White
+Write-Host "   GitHub User: $GitHubUsername" -ForegroundColor White
+
+# Check if Azure CLI is installed
+if (!(Get-Command az -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Azure CLI is not installed. Please install it first:" -ForegroundColor Red
+    Write-Host "   https://docs.microsoft.com/en-us/cli/azure/install-azure-cli" -ForegroundColor Yellow
+    exit 1
+}
 
 # Check if logged in to Azure
+Write-Host "🔐 Checking Azure authentication..." -ForegroundColor Yellow
 try {
-    $account = az account show --output json | ConvertFrom-Json
-    Write-Host "✅ Logged in as: $($account.user.name)" -ForegroundColor Green
+    $account = az account show --output json 2>$null | ConvertFrom-Json
+    if ($account) {
+        Write-Host "✅ Logged in as: $($account.user.name)" -ForegroundColor Green
+        Write-Host "📱 Subscription: $($account.name)" -ForegroundColor Green
+    } else {
+        throw "Not logged in"
+    }
 } catch {
-    Write-Host "❌ Please login to Azure first: az login" -ForegroundColor Red
+    Write-Host "❌ Please login to Azure first:" -ForegroundColor Red
+    Write-Host "   az login" -ForegroundColor Yellow
     exit 1
 }
-
-# Create Resource Group
-Write-Host "📦 Creating resource group: $resourceGroup" -ForegroundColor Yellow
-az group create --name $resourceGroup --location $location
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to create resource group" -ForegroundColor Red
-    exit 1
-}
-
-# Create App Service Plan
-Write-Host "🏗️ Creating App Service plan: $appServicePlan" -ForegroundColor Yellow
-az appservice plan create `
-    --name $appServicePlan `
-    --resource-group $resourceGroup `
-    --sku $sku `
-    --is-linux
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to create App Service plan" -ForegroundColor Red
-    exit 1
-}
-
-# Create Web App
-Write-Host "🌐 Creating Web App: $webAppName" -ForegroundColor Yellow
-az webapp create `
-    --name $webAppName `
-    --resource-group $resourceGroup `
-    --plan $appServicePlan `
-    --runtime "NODE:18-lts"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Failed to create Web App" -ForegroundColor Red

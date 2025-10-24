@@ -1,0 +1,78 @@
+# Azure Container Apps Deployment Configuration
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hra-safety-app
+  labels:
+    app: hra-safety-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hra-safety-app
+  template:
+    metadata:
+      labels:
+        app: hra-safety-app
+    spec:
+      containers:
+      - name: hra-safety-app
+        image: ${CONTAINER_REGISTRY}/hra-safety-app:${IMAGE_TAG}
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: AZURE_CLIENT_ID
+          value: "eb9865fe-5d08-43ed-8ee9-6cad32b74981"
+        - name: AZURE_TENANT_ID
+          value: "81fa766e-a349-4867-8bf4-ab35e250a08f"
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: hra-secrets
+              key: azure-client-secret
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: hra-secrets
+              key: jwt-secret
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: hra-secrets
+              key: session-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: uploads-volume
+          mountPath: /app/uploads
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: hra-data-pvc
+      - name: uploads-volume
+        persistentVolumeClaim:
+          claimName: hra-uploads-pvc

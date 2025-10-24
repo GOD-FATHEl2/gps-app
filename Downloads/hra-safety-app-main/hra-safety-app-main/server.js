@@ -58,29 +58,34 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/images', express.static('./images'));
 
 // Health check endpoint for Azure monitoring
-app.get('/health', (req, res) => {
-  try {
-    // Check database connection
-    const dbCheck = db.prepare("SELECT 1 as test").get();
-    
-    // Check if uploads directory exists
-    const uploadsExist = fs.existsSync(UPLOADS_DIR);
-    
-    res.status(200).json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      database: dbCheck ? 'connected' : 'disconnected',
-      uploads: uploadsExist ? 'available' : 'missing',
-      environment: process.env.NODE_ENV || 'development'
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'unhealthy',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
+// Health check endpoint with environment validation
+app.get("/health", (req, res) => {
+  const dbStatus = testDbConnection();
+  const uptime = process.uptime();
+  const uptimeStr = `${Math.floor(uptime / 3600)}:${Math.floor((uptime % 3600) / 60).toString().padStart(2, '0')}:${Math.floor(uptime % 60).toString().padStart(2, '0')}`;
+  
+  // Environment validation
+  const envStatus = {
+    NODE_ENV: process.env.NODE_ENV || 'not set',
+    AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID ? 'set' : 'not set',
+    AZURE_TENANT_ID: process.env.AZURE_TENANT_ID ? 'set' : 'not set',
+    CLIENT_ID: process.env.CLIENT_ID ? 'set' : 'not set',
+    TENANT_ID: process.env.TENANT_ID ? 'set' : 'not set',
+    JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'not set'
+  };
+  
+  const healthData = {
+    status: dbStatus ? "OK" : "ERROR",
+    timestamp: new Date().toISOString(),
+    uptime: uptimeStr,
+    database: dbStatus ? "Connected" : "Error",
+    version: "1.0.0",
+    environment: envStatus
+  };
+
+  console.log(`🩺 Health check - Status: ${healthData.status}, DB: ${healthData.database}, Uptime: ${healthData.uptime}`);
+  
+  res.status(dbStatus ? 200 : 503).json(healthData);
 });
 
 // Configure multer for file uploads
@@ -677,10 +682,26 @@ app.get("/api/auth/msal-config", (req, res) => {
   }
   
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  const tenantId = process.env.AZURE_TENANT_ID || process.env.TENANT_ID;
+  const clientId = process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID || 'eb9865fe-5d08-43ed-8ee9-6cad32b74981';
+  const tenantId = process.env.AZURE_TENANT_ID || process.env.TENANT_ID || '81fa766e-a349-4867-8bf4-ab35e250a08f';
+  
+  console.log('🔍 MSAL Config Debug:', {
+    clientId: clientId ? `${clientId.substring(0, 8)}...` : 'undefined',
+    tenantId: tenantId ? `${tenantId.substring(0, 8)}...` : 'undefined',
+    baseUrl,
+    authority: `https://login.microsoftonline.com/${tenantId}`
+  });
+  
+  if (!clientId || !tenantId) {
+    console.error('❌ Missing MSAL configuration:', { clientId: !!clientId, tenantId: !!tenantId });
+    return res.status(500).json({ 
+      error: 'Missing MSAL configuration',
+      details: 'AZURE_CLIENT_ID or AZURE_TENANT_ID not set'
+    });
+  }
   
   res.json({
-    clientId: process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID,
+    clientId: clientId,
     tenantId: tenantId,
     authority: `https://login.microsoftonline.com/${tenantId}`,
     redirectUri: baseUrl  // For popup auth, use the main page

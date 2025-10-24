@@ -44,18 +44,35 @@ let msalInstance = null;
 // Initialize MSAL with configuration from server
 async function initializeMSAL() {
     try {
+        console.log('🔄 Fetching MSAL configuration from server...');
+        
         // Get MSAL configuration from server
         const response = await fetch('/api/auth/msal-config');
         if (!response.ok) {
-            throw new Error('Failed to get MSAL configuration');
+            const errorText = await response.text();
+            throw new Error(`Failed to get MSAL configuration: ${response.status} - ${errorText}`);
         }
         
         const config = await response.json();
+        
+        console.log('📋 MSAL Config received:', {
+            clientId: config.clientId ? `${config.clientId.substring(0, 8)}...` : 'undefined',
+            tenantId: config.tenantId ? `${config.tenantId.substring(0, 8)}...` : 'undefined',
+            authority: config.authority,
+            redirectUri: config.redirectUri
+        });
+        
+        // Validate configuration
+        if (!config.clientId || !config.tenantId || !config.authority) {
+            throw new Error('Incomplete MSAL configuration received from server');
+        }
         
         // Update client configuration
         msalConfig.auth.clientId = config.clientId;
         msalConfig.auth.authority = config.authority;
         msalConfig.auth.redirectUri = config.redirectUri;
+        
+        console.log('🔧 Creating MSAL instance with authority:', config.authority);
         
         // Create MSAL instance
         msalInstance = new msal.PublicClientApplication(msalConfig);
@@ -63,10 +80,22 @@ async function initializeMSAL() {
         // Handle redirect promise
         await msalInstance.handleRedirectPromise();
         
-        console.log('MSAL initialized successfully with app roles support');
+        console.log('✅ MSAL initialized successfully with app roles support');
         return true;
     } catch (error) {
-        console.error('Failed to initialize MSAL:', error);
+        console.error('❌ Failed to initialize MSAL:', error);
+        
+        // Show user-friendly error
+        const errorDiv = document.getElementById('errorMessage');
+        if (errorDiv) {
+            errorDiv.innerHTML = `
+                <h3>Microsoft-inloggning misslyckades</h3>
+                <p><strong>Teknisk information:</strong> MSAL konfigurationsfel - ${error.message}</p>
+                <p>Kontakta systemadministratören om problemet kvarstår.</p>
+            `;
+            errorDiv.style.display = 'block';
+        }
+        
         return false;
     }
 }

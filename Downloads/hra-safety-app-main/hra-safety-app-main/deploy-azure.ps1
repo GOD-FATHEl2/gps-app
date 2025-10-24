@@ -77,55 +77,107 @@ az webapp update --name $webAppName --resource-group $resourceGroup --https-only
 # Deploy Application
 Write-Host "📤 Preparing application for deployment" -ForegroundColor Yellow
 
-# Create deployment package
-$deployPackage = "hra-deployment.zip"
-if (Test-Path $deployPackage) {
-    Remove-Item $deployPackage
-}
-
-# Exclude unnecessary files and compress
-$excludeFiles = @(
-    "node_modules",
-    ".git",
-    "*.md",
-    "*.log",
-    "deploy-azure.ps1",
-    "Dockerfile",
-    ".dockerignore",
-    "enhanced-schema.sql"
-)
-
-Compress-Archive -Path "./*" -DestinationPath $deployPackage -Force
-
-Write-Host "🚀 Deploying application to Azure" -ForegroundColor Yellow
-az webapp deployment source config-zip `
-    --name $webAppName `
-    --resource-group $resourceGroup `
-    --src $deployPackage
+# Create Container Apps environment
+$envName = "env-hra-safety"
+Write-Host "🌍 Creating Container Apps environment: $envName..." -ForegroundColor Yellow
+az containerapp env create `
+  --name $envName `
+  --resource-group $ResourceGroup `
+  --location $Location
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to deploy application" -ForegroundColor Red
+    Write-Host "❌ Failed to create Container Apps environment" -ForegroundColor Red
     exit 1
 }
 
-# Clean up deployment package
-Remove-Item $deployPackage
+# Build and push Docker image to GitHub Container Registry
+$imageName = "ghcr.io/$GitHubUsername/hra-safety-app:latest"
+Write-Host "🐳 Building Docker image: $imageName..." -ForegroundColor Yellow
 
-# Get application URL
-$appUrl = "https://$webAppName.azurewebsites.net"
+# Check if Docker is available
+if (!(Get-Command docker -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Docker is not installed or not in PATH" -ForegroundColor Red
+    Write-Host "   Please install Docker Desktop first" -ForegroundColor Yellow
+    exit 1
+}
 
-Write-Host "" -ForegroundColor Green
-Write-Host "✅ Deployment completed successfully!" -ForegroundColor Green
-Write-Host "📱 Application URL: $appUrl" -ForegroundColor Cyan
-Write-Host "🔧 Health Check: $appUrl/health" -ForegroundColor Cyan
-Write-Host "" -ForegroundColor Green
-Write-Host "📋 Next Steps:" -ForegroundColor Yellow
-Write-Host "1. Update your Azure App Registration redirect URIs:" -ForegroundColor White
-Write-Host "   - Web: $appUrl/auth/callback" -ForegroundColor Gray
-Write-Host "   - SPA: $appUrl" -ForegroundColor Gray
-Write-Host "2. Add your Azure client secret to app settings" -ForegroundColor White
-Write-Host "3. Test the application: $appUrl" -ForegroundColor White
-Write-Host "" -ForegroundColor Green
+# Build the image
+docker build -t $imageName .
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to build Docker image" -ForegroundColor Red
+    exit 1
+}
 
-# Open application in browser
-Start-Process $appUrl
+# Push to GitHub Container Registry
+Write-Host "📤 Pushing image to GitHub Container Registry..." -ForegroundColor Yellow
+docker push $imageName
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to push Docker image" -ForegroundColor Red
+    Write-Host "   Make sure you're authenticated with: docker login ghcr.io" -ForegroundColor Yellow
+    exit 1
+}
+
+# Create Container App
+Write-Host "🚀 Creating Container App: $AppName..." -ForegroundColor Yellow
+az containerapp create `
+  --name $AppName `
+  --resource-group $ResourceGroup `
+  --environment $envName `
+  --image $imageName `
+  --target-port 8080 `
+  --ingress external `
+  --env-vars `
+    NODE_ENV=production `
+    AZURE_CLIENT_ID=eb9865fe-5d08-43ed-8ee9-6cad32b74981 `
+    AZURE_TENANT_ID=81fa766e-a349-4867-8bf4-ab35e250a08f `
+    CLIENT_ID=eb9865fe-5d08-43ed-8ee9-6cad32b74981 `
+    TENANT_ID=81fa766e-a349-4867-8bf4-ab35e250a08f
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to create Container App" -ForegroundColor Red
+    exit 1
+}
+
+# Get the app URL
+Write-Host "🔍 Getting application URL..." -ForegroundColor Yellow
+$appUrl = az containerapp show `
+  --name $AppName `
+  --resource-group $ResourceGroup `
+  --query "properties.configuration.ingress.fqdn" `
+  --output tsv
+
+if ($appUrl) {
+    $fullUrl = "https://$appUrl"
+    
+    Write-Host "" -ForegroundColor Green
+    Write-Host "✅ Deployment completed successfully!" -ForegroundColor Green
+    Write-Host "🌐 Your app is available at: $fullUrl" -ForegroundColor Cyan
+    Write-Host "🩺 Health check: $fullUrl/health" -ForegroundColor Cyan
+    Write-Host "" -ForegroundColor Green
+    
+    Write-Host "📋 Next steps:" -ForegroundColor Yellow
+    Write-Host "   1. Update Azure AD redirect URIs to include: $fullUrl" -ForegroundColor White
+    Write-Host "   2. Test the application by visiting the URL above" -ForegroundColor White
+    Write-Host "   3. Monitor logs: az containerapp logs show --name $AppName --resource-group $ResourceGroup --follow" -ForegroundColor White
+    Write-Host "" -ForegroundColor Green
+    
+    # Test health endpoint
+    Write-Host "🔍 Testing health endpoint..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 30  # Wait for app to start
+    
+    try {
+        $healthResponse = Invoke-RestMethod -Uri "$fullUrl/health" -Method GET -TimeoutSec 30
+        Write-Host "✅ Health check passed: $($healthResponse.status)" -ForegroundColor Green
+        Write-Host "📊 App details: Uptime $($healthResponse.uptime), Database: $($healthResponse.database)" -ForegroundColor Green
+    } catch {
+        Write-Host "⚠️  Health check failed, but app may still be starting up" -ForegroundColor Yellow
+        Write-Host "   Try manually: $fullUrl/health" -ForegroundColor White
+    }
+    
+    Write-Host "" -ForegroundColor Green
+    Write-Host "🎉 HRA Safety App is now live in Azure!" -ForegroundColor Green
+    
+} else {
+    Write-Host "❌ Failed to get application URL" -ForegroundColor Red
+    Write-Host "   Check the Azure portal for deployment status" -ForegroundColor Yellow
+}

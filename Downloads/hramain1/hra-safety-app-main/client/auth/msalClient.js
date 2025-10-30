@@ -1,3 +1,25 @@
+
+// Ensure MSAL_CONFIG is set before MSALAuthService is instantiated
+async function setupMSALAuthService() {
+    if (!window.MSAL_CONFIG) {
+        // Fetch config from backend
+        try {
+            const response = await fetch('/api/auth/msal-config');
+            if (response.ok) {
+                const config = await response.json();
+                // Force https and correct callback path
+                config.redirectUri = 'https://hra-sweden-dafdbdh4h4ghbxgm.swedencentral-01.azurewebsites.net/auth/callback';
+                window.MSAL_CONFIG = config;
+            } else {
+                throw new Error('Failed to fetch MSAL config');
+            }
+        } catch (e) {
+            console.error('Could not fetch MSAL config:', e);
+        }
+    }
+    window.msalAuthService = new MSALAuthService();
+}
+
 // MSAL Browser Authentication for HRA Frontend
 class MSALAuthService {
     constructor() {
@@ -17,7 +39,7 @@ class MSALAuthService {
                 auth: {
                     clientId: window.MSAL_CONFIG?.clientId || 'your-client-id',
                     authority: window.MSAL_CONFIG?.authority || 'https://login.microsoftonline.com/your-tenant-id',
-                    redirectUri: window.location.origin + '/auth/callback'
+                    redirectUri: window.MSAL_CONFIG?.redirectUri || (window.location.origin + '/auth/callback')
                 },
                 cache: {
                     cacheLocation: "sessionStorage",
@@ -157,5 +179,5 @@ class MSALAuthService {
     }
 }
 
-// Global MSAL service instance
-window.msalAuthService = new MSALAuthService();
+// Global MSAL service instance (after config is loaded)
+setupMSALAuthService();

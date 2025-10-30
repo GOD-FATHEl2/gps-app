@@ -33,7 +33,7 @@ export const clientMsalConfig = {
         clientId: process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID,
         authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID || process.env.TENANT_ID}`,
         redirectUri: process.env.REDIRECT_URI || (process.env.NODE_ENV === 'production' 
-            ? "https://hra-h8fea8c0gucwf7fe.canadacentral-01.azurewebsites.net/auth/callback" 
+            ? "https://hra-sweden-dafdbdh4h4ghbxgm.swedencentral-01.azurewebsites.net/auth/callback" 
             : "http://localhost:8080/auth/callback")
     },
     cache: {

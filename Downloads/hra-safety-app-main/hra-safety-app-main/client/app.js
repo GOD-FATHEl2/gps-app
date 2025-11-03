@@ -511,52 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 });
-// (Removed orphaned duplicate MSAL login handler code after refactor)
-    if (error.message.includes('MSAL Login Failed:')) {
-      // Plocka ut felkoden från det robusta systemet
-      const match = error.message.match(/MSAL Login Failed: (\w+)/);
-      const errorCode = match ? match[1] : 'unknown_error';
-      
-      switch (errorCode) {
-        case 'interaction_required':
-        case 'consent_required':
-          userMessage = "Samtycke krävs för Microsoft-inloggning";
-          technicalInfo = "Du behöver ge samtycke för att komma åt HRA-systemet. Försök igen.";
-          break;
-        case 'popup_window_error':
-          userMessage = "Popup blockeras av webbläsaren";
-          technicalInfo = "Tillåt popups för denna sida eller försök igen.";
-          break;
-        case 'user_cancelled':
-          userMessage = "Inloggning avbröts";
-          technicalInfo = "Du avbröt Microsoft-inloggningen.";
-          break;
-        case 'authority_mismatch':
-          userMessage = "Fel Microsoft-konto";
-          technicalInfo = "Du måste logga in med ett Volvo Cars-konto.";
-          break;
-        default:
-          userMessage = "Microsoft-inloggning misslyckades";
-          technicalInfo = `MSAL fel: ${errorCode} - ${error.message}`;
-      }
-    } else if (error.message.includes('msal-exchange')) {
-      userMessage = "Inloggning misslyckades";
-      technicalInfo = `Backend-fel: ${error.message}`;
-    } else if (error.message.includes('Failed to acquire API token')) {
-      userMessage = "Kunde inte hämta behörighetstoken";
-      technicalInfo = "Kontrollera att din användare har rätt behörigheter.";
-    } else if (error.message.includes('No account')) {
-      userMessage = "Inloggning avbröts eller misslyckades";
-      technicalInfo = "Ingen användare vald eller inloggning avbröts.";
-    }
-    
-    $("#loginMsg").innerHTML = `
-      <strong>${userMessage}</strong><br>
-      <small>Teknisk information: ${technicalInfo}<br>Diag: ${diag}</small>
-    `;
-    $("#loginMsg").classList.remove("hidden");
-  }
-};
 
 // Development bypass function (from implementation guide)
 function skipMSALLogin() {

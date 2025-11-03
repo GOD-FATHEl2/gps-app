@@ -122,6 +122,38 @@
   <small> Copyright AB Volvo 2025 VCT- Volvo-TBA • </small>
 </footer>
 
+<!-- MSAL Browser Library - MUST be loaded first before any MSAL code -->
+<script>
+// Load MSAL with fallback CDNs
+(function loadMSAL() {
+  const cdns = [
+    'https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js',
+    'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js',
+    'https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js'
+  ];
+  
+  function tryLoadCDN(index) {
+    if (index >= cdns.length) {
+      console.error('❌ All MSAL CDNs failed to load!');
+      document.getElementById('msalLoginBtn')?.setAttribute('disabled', 'true');
+      document.getElementById('msalLoginBtn')?.setAttribute('title', 'MSAL library failed to load');
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = cdns[index];
+    script.onload = () => console.log('✅ MSAL library loaded from:', cdns[index]);
+    script.onerror = () => {
+      console.warn(`⚠️ Failed to load MSAL from: ${cdns[index]}, trying next...`);
+      tryLoadCDN(index + 1);
+    };
+    document.head.appendChild(script);
+  }
+  
+  tryLoadCDN(0);
+})();
+</script>
+
 <script src="msal-diagnostics.js"></script>
 <script src="msalAuthService.js"></script>
 <script src="app.js"></script>

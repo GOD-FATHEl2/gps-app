@@ -1,26 +1,8 @@
 // ...existing code...
-// --- MSAL config endpoint: always build authority from tenantId ---
-app.get('/api/auth/msal-config', (req, res) => {
-  const clientId  = process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID;
-  const tenantId  = process.env.AZURE_TENANT_ID || process.env.TENANT_ID;
-  const appUrl    = process.env.APP_URL || `https://${req.headers.host}`;
-
-  if (!clientId || !tenantId) {
-    // Fail closed: front-end has a fallback, but better to set envs correctly
-    return res.json({});
-  }
-
-  const authority   = `https://login.microsoftonline.com/${tenantId}`;
-  const redirectUri = process.env.REDIRECT_URI || `${appUrl}/auth/callback`;
-
-  res.json({
-    clientId,
-    tenantId,
-    authority,
-    redirectUri,
-    cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
-  });
-});
+// ...existing code...
+// ...existing code...
+// ...existing code...
+// ...existing code...
 import express from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
@@ -643,15 +625,17 @@ app.post("/api/auth/msal-exchange", async (req, res) => {
     // Get user info and app roles
     const userInfo = await msalAuthModule.getUserInfo(accessToken);
     const userRoles = await msalAuthModule.getUserRoles(accessToken);
-    
-    console.log('👤 User info:', { 
-      name: userInfo.displayName, 
-    });
+    // Map hraRole from userRoles or default to 'user'
+    let hraRole = 'user';
+    if (Array.isArray(userRoles) && userRoles.length > 0) {
+      hraRole = userRoles[0];
+    } else if (typeof userRoles === 'string' && userRoles) {
+      hraRole = userRoles;
+    }
+    console.log('👤 User info:', { name: userInfo.displayName });
     console.log('🎭 Mapped HRA role:', hraRole);
-    
     // Create or update user in database
     const existingUser = db.prepare("SELECT * FROM users WHERE username=?").get(userInfo.userPrincipalName);
-    
     let userId;
     if (existingUser) {
       // Update existing user
@@ -671,12 +655,9 @@ app.post("/api/auth/msal-exchange", async (req, res) => {
       `).run(userInfo.userPrincipalName, userInfo.displayName, hraRole, userInfo.id);
       userId = insertResult.lastInsertRowid;
     }
-    
     // Create HRA token
     const hraToken = msalAuthModule.createHRAToken(userInfo, hraRole);
-    
     console.log('✅ MSAL token exchange successful');
-    
     res.json({
       token: hraToken,
       user: {

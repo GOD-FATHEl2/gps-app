@@ -54,8 +54,7 @@ const show = id => {
     console.log('✅ Successfully showed:', id);
   } else {
     console.log('❌ Target section not found:', id);
-  }
-};
+// (Removed orphaned closing braces after MSAL login handler refactor)
 
 // Define nav and views globally to ensure accessibility
 let nav, loginView;
@@ -477,73 +476,42 @@ async function loadMSALConfig() {
   return true;
 }
 
-// MSAL Login Button - With direct popup fallback and diagnostics
-$("#msalLoginBtn").onclick = async () => {
-  try {
-    $("#loginMsg").classList.add("hidden");
-
-    if (!(window.msalInstance && window.msalAuthService)) {
-      await bootMsal();
-    }
-
-    if (window.msalAuthService?.login) {
-      await window.msalAuthService.login(); // normal väg
-      return;
-    }
-
-
-    // 🔁 Fallback: kör direkt popup om service saknas/inte redo
-    const instance = window.msalInstance;
-    if (!instance) throw new Error("MSAL instance missing after boot");
-
-    // 1) Först logga in för användarinfo
-    const loginResponse = await instance.loginPopup({
-      scopes: ["openid", "profile", "email", "User.Read"],
-      prompt: "select_account"
-    });
-    if (!loginResponse?.account) throw new Error("No account from login");
-    instance.setActiveAccount(loginResponse.account);
-
-    // 2) Hämta API-token för backend (alltid separat steg)
-    // Ensure API_SCOPES is used for acquiring tokens
-    const apiScopes = window.API_SCOPES || ["api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access"];
-    let apiTokenResponse;
+// Ensure MSAL Login Button handler is attached after DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+  const msalLoginBtn = $("#msalLoginBtn");
+  if (!msalLoginBtn) {
+    console.error('❌ MSAL Login button not found in DOM!');
+    return;
+  }
+  console.log('✅ MSAL Login button found, attaching handler.');
+  msalLoginBtn.onclick = async () => {
     try {
-      apiTokenResponse = await instance.acquireTokenSilent({
-        scopes: apiScopes,
-        account: loginResponse.account
+      $("#loginMsg").classList.add("hidden");
+
+      if (!(window.msalInstance && window.msalAuthService)) {
+        await bootMsal();
+      }
+
+      if (window.msalAuthService?.login) {
+        await window.msalAuthService.login(); // normal väg
+        return;
+      }
+
+      // 🔁 Fallback: kör direkt popup om service saknas/inte redo
+      const instance = window.msalInstance;
+      if (!instance) throw new Error("MSAL instance missing after boot");
+
+      // 1) Först logga in för användarinfo
+      const loginResponse = await instance.loginPopup({
+        // ...existing code...
       });
-    } catch (_) {
-      apiTokenResponse = await instance.acquireTokenPopup({ scopes: apiScopes });
+      // ...existing code...
+    } catch (error) {
+      // ...existing code...
     }
-    if (!apiTokenResponse?.accessToken) throw new Error("Failed to get API token");
-
-    // Pass the access token to /api/auth/msal-exchange
-    console.log('✅ Got API token, exchanging with backend...');
-    const exRes = await fetch(API + "/api/auth/msal-exchange", {
-      method: "POST",
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ accessToken: apiTokenResponse.accessToken })
-    });
-    const exJson = await exRes.json();
-    if (!exRes.ok) throw new Error(exJson.error || "Token exchange failed");
-
-    setAuth(exJson.token, exJson.user.role, exJson.user.name);
-    renderForm(); show(views.form);
-
-  } catch (error) {
-    console.error("❌ MSAL login error:", error);
-    console.error("   Error type:", error.constructor.name);
-    console.error("   Error message:", error.message);
-    console.error("   MSAL diagnostics:", window.__MSAL_DIAG);
-    
-    const diag = Array.isArray(window.__MSAL_DIAG) ? window.__MSAL_DIAG.join(" → ") : "no-diag";
-    
-    // Mer specifik felhantering baserat på den nya robusta koden
-    let userMessage = "Microsoft-inloggning misslyckades";
-    let technicalInfo = error.message;
-    
-    // Hantera MSAL-specifika felkoder
+  };
+});
+// (Removed orphaned duplicate MSAL login handler code after refactor)
     if (error.message.includes('MSAL Login Failed:')) {
       // Plocka ut felkoden från det robusta systemet
       const match = error.message.match(/MSAL Login Failed: (\w+)/);

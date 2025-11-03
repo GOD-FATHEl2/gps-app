@@ -1,3 +1,17 @@
+// --- Robust error logging for Azure diagnostics ---
+process.on('uncaughtException', err => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', err => {
+  console.error('UNHANDLED PROMISE REJECTION:', err);
+  process.exit(1);
+});
+
+// Health check endpoint for Azure
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
 // ...existing code...
 // ...existing code...
 // ...existing code...

@@ -1518,7 +1518,8 @@ async function loadUsers(){
       location.reload();
     }
   }
-}
+};
+
 $("#addUser").onclick = async ()=>{
   try {
     const freshToken = await getFreshToken();
@@ -1540,3 +1541,8 @@ $("#addUser").onclick = async ()=>{
     }
   }
 };
+
+// --- Initialize app on page load ---
+checkAuth();
+}
+}

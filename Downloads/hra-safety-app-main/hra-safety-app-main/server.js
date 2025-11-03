@@ -46,6 +46,10 @@ try {
 
 // ====== EXPRESS APP SETUP ======
 const app = express();
+
+// Trust Azure App Service proxy for correct protocol detection
+app.set('trust proxy', 1);
+
 app.use(cors({ origin: true, credentials: true }));
 
 // Session middleware for MSAL

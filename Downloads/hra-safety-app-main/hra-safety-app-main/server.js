@@ -530,6 +530,33 @@ app.post("/api/auth/login", (req, res) => {
 
 // --- MSAL Authentication Routes ---
 
+// Get MSAL configuration for frontend
+app.get("/api/auth/msal-config", (req, res) => {
+  try {
+    const protocol = req.protocol || 'https';
+    const host = req.get('host');
+    const origin = `${protocol}://${host}`;
+    
+    const config = {
+      clientId: process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID,
+      tenantId: process.env.AZURE_TENANT_ID || process.env.TENANT_ID,
+      authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID || process.env.TENANT_ID}`,
+      redirectUri: `${origin}/auth/callback`
+    };
+    
+    console.log('📋 Sending MSAL config to frontend:', {
+      clientId: config.clientId ? `${config.clientId.substring(0, 8)}...` : 'missing',
+      tenantId: config.tenantId ? `${config.tenantId.substring(0, 8)}...` : 'missing',
+      redirectUri: config.redirectUri
+    });
+    
+    res.json(config);
+  } catch (error) {
+    console.error('Error getting MSAL config:', error);
+    res.status(500).json({ error: 'Failed to get MSAL configuration' });
+  }
+});
+
 // Get MSAL auth URL
 app.get("/api/auth/msal-url", async (req, res) => {
   try {

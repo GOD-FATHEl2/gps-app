@@ -533,9 +533,13 @@ app.post("/api/auth/login", (req, res) => {
 // Get MSAL configuration for frontend
 app.get("/api/auth/msal-config", (req, res) => {
   try {
-    const protocol = req.protocol || 'https';
+    // Azure App Service uses x-forwarded-proto header for the actual protocol
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
     const host = req.get('host');
-    const origin = `${protocol}://${host}`;
+    
+    // Force HTTPS for Azure deployments (azurewebsites.net)
+    const useHttps = protocol === 'https' || host.includes('azurewebsites.net');
+    const origin = `${useHttps ? 'https' : protocol}://${host}`;
     
     const config = {
       clientId: process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID,
@@ -545,6 +549,10 @@ app.get("/api/auth/msal-config", (req, res) => {
     };
     
     console.log('📋 Sending MSAL config to frontend:', {
+      protocol,
+      forwardedProto: req.get('x-forwarded-proto'),
+      host,
+      useHttps,
       clientId: config.clientId ? `${config.clientId.substring(0, 8)}...` : 'missing',
       tenantId: config.tenantId ? `${config.tenantId.substring(0, 8)}...` : 'missing',
       redirectUri: config.redirectUri
@@ -584,7 +592,13 @@ app.get("/auth/callback", async (req, res) => {
       return res.status(400).send('Authorization code not found');
     }
 
-    const redirectUri = `${req.protocol}://${req.get('host')}/auth/callback`;
+    // Use x-forwarded-proto for Azure App Service, force HTTPS for azurewebsites.net
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('host');
+    const useHttps = protocol === 'https' || host.includes('azurewebsites.net');
+    const redirectUri = `${useHttps ? 'https' : protocol}://${host}/auth/callback`;
+    
+    console.log('🔄 MSAL callback - redirectUri:', redirectUri);
     const tokenResponse = await msalAuthModule.exchangeCodeForTokens(code, redirectUri);
     
     // Get user info and app roles

@@ -93,9 +93,13 @@ public
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 hogrisk.db
+hogrisk.db-shm
+hogrisk.db-wal
 
 # Logs
 logs/

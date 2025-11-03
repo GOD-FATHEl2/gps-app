@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSAL Configuration Debug</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #106ebe;
+        }
+        .test-results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 MSAL Configuration Debugger</h1>
+    
+    <div class="section">
+        <h2>Environment Information</h2>
+        <div id="envInfo"></div>
+    </div>
+
+    <div class="section">
+        <h2>Server MSAL Configuration</h2>
+        <button onclick="testServerConfig()">Test Server Config</button>
+        <div id="serverConfig" class="test-results"></div>
+    </div>
+
+    <div class="section">
+        <h2>Client MSAL Configuration</h2>
+        <button onclick="testClientConfig()">Test Client Config</button>
+        <div id="clientConfig" class="test-results"></div>
+    </div>
+
+    <div class="section">
+        <h2>Azure AD Redirect URI Test</h2>
+        <button onclick="testRedirectUri()">Test Redirect URI</button>
+        <div id="redirectTest" class="test-results"></div>
+    </div>
+
+    <div class="section">
+        <h2>MSAL Library Test</h2>
+        <button onclick="testMSALLibrary()">Test MSAL Library</button>
+        <div id="msalLibTest" class="test-results"></div>
+    </div>
+
+    <div class="section">
+        <h2>Full MSAL Login Test</h2>
+        <button onclick="testFullLogin()">Test Microsoft Login</button>
+        <div id="loginTest" class="test-results"></div>
+    </div>
+
+    <script>
+        // Display environment info
+        function displayEnvInfo() {
+            const info = {
+                'Current URL': window.location.href,
+                'Origin': window.location.origin,
+                'Hostname': window.location.hostname,
+                'Protocol': window.location.protocol,
+                'Is Azure': window.location.hostname.includes('azurewebsites.net'),
+                'User Agent': navigator.userAgent
+            };
+
+            let html = '<pre>';
+            for (const [key, value] of Object.entries(info)) {
+                html += `<strong>${key}:</strong> ${value}\n`;
+            }
+            html += '</pre>';
+            document.getElementById('envInfo').innerHTML = html;
+        }
+
+        // Test server configuration
+        async function testServerConfig() {
+            const resultDiv = document.getElementById('serverConfig');
+            resultDiv.innerHTML = '<div class="status warning">⏳ Testing server configuration...</div>';
+
+            try {
+                const response = await fetch('/api/auth/msal-config');
+                const config = await response.json();
+
+                let html = '<div class="status success">✅ Server configuration loaded successfully</div>';
+                html += '<pre>' + JSON.stringify(config, null, 2) + '</pre>';
+
+                // Check for issues
+                const issues = [];
+                if (!config.redirectUri.startsWith('https://')) {
+                    issues.push('❌ Redirect URI does NOT use HTTPS');
+                }
+                if (!config.redirectUri.includes('/auth/callback')) {
+                    issues.push('⚠️ Redirect URI missing /auth/callback suffix');
+                }
+                if (!config.clientId || config.clientId.length < 30) {
+                    issues.push('❌ Invalid Client ID');
+                }
+                if (!config.tenantId || config.tenantId.length < 30) {
+                    issues.push('❌ Invalid Tenant ID');
+                }
+
+                if (issues.length > 0) {
+                    html += '<div class="status error"><strong>Issues Found:</strong><br>' + issues.join('<br>') + '</div>';
+                } else {
+                    html += '<div class="status success">✅ All checks passed!</div>';
+                }
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Test client configuration
+        async function testClientConfig() {
+            const resultDiv = document.getElementById('clientConfig');
+            resultDiv.innerHTML = '<div class="status warning">⏳ Testing client configuration...</div>';
+
+            try {
+                // Load app.js functions
+                const expectedConfig = {
+                    clientId: 'eb9865fe-5d08-43ed-8ee9-6cad32b74981',
+                    authority: 'https://login.microsoftonline.com/81fa766e-a349-4867-8bf4-ab35e250a08f',
+                    redirectUri: window.location.hostname.includes('azurewebsites.net')
+                        ? 'https://hra-sweden-dafdbdh4h4ghbxgm.swedencentral-01.azurewebsites.net/auth/callback'
+                        : window.location.origin + '/auth/callback'
+                };
+
+                let html = '<div class="status success">✅ Expected client configuration:</div>';
+                html += '<pre>' + JSON.stringify(expectedConfig, null, 2) + '</pre>';
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Test redirect URI
+        async function testRedirectUri() {
+            const resultDiv = document.getElementById('redirectTest');
+            resultDiv.innerHTML = '<div class="status warning">⏳ Testing redirect URI...</div>';
+
+            try {
+                const response = await fetch('/api/auth/msal-config');
+                const config = await response.json();
+                const redirectUri = config.redirectUri;
+
+                let html = '<strong>Configured Redirect URI:</strong><br>';
+                html += `<code>${redirectUri}</code><br><br>`;
+
+                // Test if it's accessible
+                html += '<strong>Required Redirect URIs in Azure AD:</strong><br>';
+                html += '<div class="status warning">';
+                html += '⚠️ You MUST add these URIs to Azure AD App Registration → Authentication → Single-page application:<br><br>';
+                html += `1. <code>${redirectUri}</code><br>`;
+                html += `2. <code>${window.location.origin}</code><br>`;
+                html += '</div>';
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Test MSAL library
+        async function testMSALLibrary() {
+            const resultDiv = document.getElementById('msalLibTest');
+            resultDiv.innerHTML = '<div class="status warning">⏳ Testing MSAL library...</div>';
+
+            try {
+                // Try to load MSAL
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js';
+                
+                script.onload = () => {
+                    if (typeof msal !== 'undefined' && msal.PublicClientApplication) {
+                        resultDiv.innerHTML = '<div class="status success">✅ MSAL library loaded successfully</div>';
+                    } else {
+                        resultDiv.innerHTML = '<div class="status error">❌ MSAL library loaded but not accessible</div>';
+                    }
+                };
+
+                script.onerror = () => {
+                    resultDiv.innerHTML = '<div class="status error">❌ Failed to load MSAL library</div>';
+                };
+
+                document.head.appendChild(script);
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Test full login
+        async function testFullLogin() {
+            const resultDiv = document.getElementById('loginTest');
+            resultDiv.innerHTML = '<div class="status warning">⏳ Initializing MSAL and testing login...</div>';
+
+            try {
+                // Get config from server
+                const response = await fetch('/api/auth/msal-config');
+                const serverConfig = await response.json();
+
+                // Override with HTTPS if needed
+                const config = {
+                    clientId: serverConfig.clientId,
+                    authority: serverConfig.authority,
+                    redirectUri: serverConfig.redirectUri.replace(/^http:/, 'https:')
+                };
+
+                if (!config.redirectUri.includes('/auth/callback')) {
+                    config.redirectUri = config.redirectUri.replace(/\/$/, '') + '/auth/callback';
+                }
+
+                let html = '<div class="status success">✅ Using configuration:</div>';
+                html += '<pre>' + JSON.stringify(config, null, 2) + '</pre>';
+
+                // Wait for MSAL to load
+                if (typeof msal === 'undefined') {
+                    html += '<div class="status warning">⏳ Waiting for MSAL library to load...</div>';
+                    resultDiv.innerHTML = html;
+
+                    setTimeout(async () => {
+                        if (typeof msal === 'undefined') {
+                            resultDiv.innerHTML += '<div class="status error">❌ MSAL library not loaded. Please run "Test MSAL Library" first.</div>';
+                            return;
+                        }
+                        await performLogin(config, resultDiv);
+                    }, 2000);
+                } else {
+                    resultDiv.innerHTML = html;
+                    await performLogin(config, resultDiv);
+                }
+            } catch (error) {
+                resultDiv.innerHTML += `<div class="status error">❌ Error: ${error.message}</div>`;
+                console.error('Login test error:', error);
+            }
+        }
+
+        async function performLogin(config, resultDiv) {
+            try {
+                // Create MSAL instance
+                const msalInstance = new msal.PublicClientApplication({
+                    auth: {
+                        clientId: config.clientId,
+                        authority: config.authority,
+                        redirectUri: config.redirectUri,
+                        navigateToLoginRequestUrl: false
+                    },
+                    cache: {
+                        cacheLocation: 'sessionStorage',
+                        storeAuthStateInCookie: false
+                    }
+                });
+
+                await msalInstance.initialize();
+
+                resultDiv.innerHTML += '<div class="status success">✅ MSAL instance created and initialized</div>';
+                resultDiv.innerHTML += '<div class="status warning">🔓 Opening Microsoft login popup...</div>';
+
+                // Attempt login
+                const loginResponse = await msalInstance.loginPopup({
+                    scopes: ['openid', 'profile', 'email', 'User.Read'],
+                    prompt: 'select_account'
+                });
+
+                if (loginResponse && loginResponse.account) {
+                    resultDiv.innerHTML += '<div class="status success">✅ Login successful!</div>';
+                    resultDiv.innerHTML += '<pre>' + JSON.stringify({
+                        username: loginResponse.account.username,
+                        name: loginResponse.account.name,
+                        tenantId: loginResponse.account.tenantId
+                    }, null, 2) + '</pre>';
+                } else {
+                    resultDiv.innerHTML += '<div class="status error">❌ Login failed - no account in response</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML += `<div class="status error">❌ Login failed: ${error.message}</div>`;
+                if (error.errorCode) {
+                    resultDiv.innerHTML += `<div class="status error">Error Code: ${error.errorCode}</div>`;
+                }
+                console.error('Login error:', error);
+            }
+        }
+
+        // Initialize on load
+        window.onload = () => {
+            displayEnvInfo();
+        };
+    </script>
+</body>
+</html>

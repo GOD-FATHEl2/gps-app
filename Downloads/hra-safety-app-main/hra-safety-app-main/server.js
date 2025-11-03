@@ -537,13 +537,13 @@ app.post("/api/auth/login", (req, res) => {
 // Get MSAL configuration for frontend
 app.get("/api/auth/msal-config", (req, res) => {
   try {
-    // Azure App Service uses x-forwarded-proto header for the actual protocol
-    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
     const host = req.get('host');
     
     // Force HTTPS for Azure deployments (azurewebsites.net)
-    const useHttps = protocol === 'https' || host.includes('azurewebsites.net');
-    const origin = `${useHttps ? 'https' : protocol}://${host}`;
+    // Azure App Service always runs behind a proxy, so we must use HTTPS
+    const isAzure = host && host.includes('azurewebsites.net');
+    const protocol = isAzure ? 'https' : (req.get('x-forwarded-proto') || req.protocol || 'https');
+    const origin = `${protocol}://${host}`;
     
     const config = {
       clientId: process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID,
@@ -553,10 +553,11 @@ app.get("/api/auth/msal-config", (req, res) => {
     };
     
     console.log('📋 Sending MSAL config to frontend:', {
+      host,
+      isAzure,
       protocol,
       forwardedProto: req.get('x-forwarded-proto'),
-      host,
-      useHttps,
+      reqProtocol: req.protocol,
       clientId: config.clientId ? `${config.clientId.substring(0, 8)}...` : 'missing',
       tenantId: config.tenantId ? `${config.tenantId.substring(0, 8)}...` : 'missing',
       redirectUri: config.redirectUri

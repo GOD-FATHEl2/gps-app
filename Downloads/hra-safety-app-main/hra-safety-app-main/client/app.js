@@ -1,3 +1,43 @@
+// --- MSAL config sanitizer ---
+// MSAL config for Azure production
+function getMsalConfig() {
+  // In production (Azure), always use these values
+  if (window.location.hostname.endsWith('azurewebsites.net')) {
+    return {
+      clientId: 'eb9865fe-5d08-43ed-8ee9-6cad32b74981',
+      authority: 'https://login.microsoftonline.com/81fa766e-a349-4867-8bf4-ab35e250a08f',
+      redirectUri: 'https://hra-sweden-dafdbdh4h4ghbxgm.swedencentral-01.azurewebsites.net/auth/callback',
+      scopes: [
+        'openid',
+        'profile',
+        'email',
+        'User.Read',
+        'api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access'
+      ],
+      cache: {
+        cacheLocation: 'sessionStorage',
+        storeAuthStateInCookie: false
+      }
+    };
+  }
+  // For local development, fallback to .env or defaults
+  return {
+    clientId: msalConfigFallback.clientId,
+    authority: `https://login.microsoftonline.com/${msalConfigFallback.tenantId}`,
+    redirectUri: window.location.origin + '/auth/callback',
+    scopes: [
+      'openid',
+      'profile',
+      'email',
+      'User.Read',
+      'api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access'
+    ],
+    cache: {
+      cacheLocation: 'sessionStorage',
+      storeAuthStateInCookie: false
+    }
+  };
+}
 const API = location.origin;  // same origin
 let token=null, role=null, name=null;
 
@@ -388,52 +428,53 @@ function loadAuth(){
 let msalConfig = null;
 
 // Fallback som används om msal-config inte går att hämta
-        // API scopes för HRA backend authentication (globalt tillgänglig)
-        const API_SCOPES = ["api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access"];
-        window.API_SCOPES = API_SCOPES;
-        
-        // Fail-safe configuration if backend config fetch fails
-        const msalConfigFallback = {
-            auth: {
-                clientId: "eb9865fe-5d08-43ed-8ee9-6cad32b74981",
-                authority: "https://login.microsoftonline.com/81fa766e-a349-4867-8bf4-ab35e250a08f",
-                redirectUri: window.location.origin + "/auth/callback"
-            },
-            cache: {
-                cacheLocation: "sessionStorage",
-                storeAuthStateInCookie: false,
-            }
-        };
+// API scopes för HRA backend authentication (globalt tillgänglig)
+const API_SCOPES = ["api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access"];
+window.API_SCOPES = API_SCOPES;
+
+// Flattened fail-safe configuration if backend config fetch fails
+const msalConfigFallback = {
+  clientId: "eb9865fe-5d08-43ed-8ee9-6cad32b74981",
+  tenantId: "81fa766e-a349-4867-8bf4-ab35e250a08f",
+  authority: "https://login.microsoftonline.com/81fa766e-a349-4867-8bf4-ab35e250a08f",
+  redirectUri: window.location.origin + "/auth/callback",
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
+  }
+};
 
 // Load MSAL configuration
 async function loadMSALConfig() {
+  const fb = {
+    clientId: "eb9865fe-5d08-43ed-8ee9-6cad32b74981",
+    tenantId: "81fa766e-a349-4867-8bf4-ab35e250a08f",
+    redirectUri: window.location.origin + "/auth/callback",
+    cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+  };
+
   try {
-    const response = await fetch(API + "/api/auth/msal-config");
-    if (response.ok) {
-      msalConfig = await response.json();
-      if (!msalConfig.clientId || !msalConfig.tenantId) {
-        console.warn("MSAL config saknar clientId/tenantId – använder fallback");
-        msalConfig = msalConfigFallback;
-      }
-      if (!msalConfig.authority) {
-        msalConfig.authority = `https://login.microsoftonline.com/${msalConfig.tenantId}`;
-      }
-      console.log("MSAL Config loaded:", {
-        clientId: msalConfig.clientId ? 'Set' : 'Missing',
-        tenantId: msalConfig.tenantId ? 'Set' : 'Missing',
-        authority: msalConfig.authority ? 'Set' : 'Missing'
-      });
-      return true;
-    } else {
-      console.warn("MSAL config svarade inte OK – använder fallback");
-      msalConfig = msalConfigFallback;
-      return true;
-    }
-  } catch (error) {
-    console.warn("MSAL config kunde inte hämtas – använder fallback:", error.message);
-    msalConfig = msalConfigFallback;
-    return true;
-  }
+    const r = await fetch(API + "/api/auth/msal-config");
+    msalConfig = r.ok ? await r.json() : {};
+  } catch { msalConfig = {}; }
+
+  // Merge + fix
+  msalConfig.clientId  = msalConfig.clientId || fb.clientId;
+  msalConfig.tenantId  = msalConfig.tenantId || fb.tenantId;
+
+  // ALWAYS derive from tenantId to avoid /undefined/
+  msalConfig.authority = `https://login.microsoftonline.com/${msalConfig.tenantId}`;
+
+  // Ensure https + /auth/callback
+  const ru = msalConfig.redirectUri || fb.redirectUri;
+  const origin = window.location.origin.replace(/^http:/, 'https:');
+  msalConfig.redirectUri = ru.startsWith('http')
+    ? ru.replace(/^http:/, 'https:')
+    : origin + "/auth/callback";
+
+  msalConfig.cache = msalConfig.cache || fb.cache;
+  console.log("MSAL Config (final):", msalConfig);
+  return true;
 }
 
 // MSAL Login Button - With direct popup fallback and diagnostics
@@ -450,30 +491,35 @@ $("#msalLoginBtn").onclick = async () => {
       return;
     }
 
+
     // 🔁 Fallback: kör direkt popup om service saknas/inte redo
     const instance = window.msalInstance;
     if (!instance) throw new Error("MSAL instance missing after boot");
 
-    // Först logga in för användarinfo
+    // 1) Först logga in för användarinfo
     const loginResponse = await instance.loginPopup({
       scopes: ["openid", "profile", "email", "User.Read"],
       prompt: "select_account"
     });
-
     if (!loginResponse?.account) throw new Error("No account from login");
     instance.setActiveAccount(loginResponse.account);
-    
-    // 👇 Hämta API-token för backend
-    console.log('🔄 Acquiring API token with scopes:', window.API_SCOPES);
-    const apiTokenResponse = await instance.acquireTokenSilent({
-      scopes: window.API_SCOPES,
-      account: loginResponse.account
-    });
 
+    // 2) Hämta API-token för backend (alltid separat steg)
+    // Ensure API_SCOPES is used for acquiring tokens
+    const apiScopes = window.API_SCOPES || ["api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access"];
+    let apiTokenResponse;
+    try {
+      apiTokenResponse = await instance.acquireTokenSilent({
+        scopes: apiScopes,
+        account: loginResponse.account
+      });
+    } catch (_) {
+      apiTokenResponse = await instance.acquireTokenPopup({ scopes: apiScopes });
+    }
     if (!apiTokenResponse?.accessToken) throw new Error("Failed to get API token");
-    
+
+    // Pass the access token to /api/auth/msal-exchange
     console.log('✅ Got API token, exchanging with backend...');
-    // Byt token med din backend:
     const exRes = await fetch(API + "/api/auth/msal-exchange", {
       method: "POST",
       headers: {'Content-Type':'application/json'},
@@ -993,15 +1039,17 @@ async function bootMsal() {
     diag.push("msalPresent:ok");
 
     // 4) Skapa instans
+    msalConfig = getMsalConfig();
+    console.log('MSAL (final) config:', msalConfig);
     const msalInstance = new msal.PublicClientApplication({
       auth: {
         clientId: msalConfig.clientId,
-        authority: msalConfig.authority || `https://login.microsoftonline.com/${msalConfig.tenantId}`,
-        redirectUri: window.location.origin,
-        postLogoutRedirectUri: window.location.origin,
+        authority: msalConfig.authority,
+        redirectUri: msalConfig.redirectUri,
+        postLogoutRedirectUri: msalConfig.redirectUri,
         navigateToLoginRequestUrl: false
       },
-      cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false },
+      cache: msalConfig.cache,
       system: {
         allowNativeBroker: false,
         loggerOptions: {
@@ -1515,7 +1563,6 @@ async function loadUsers(){
       <table class="table"><thead><tr><th>ID</th><th>Namn</th><th>Användare</th><th>Roll</th><th>Aktiv</th><th>Ändra</th><th>Radera</th></tr></thead>
       <tbody>
       ${rows.map(r=>`<tr>
-        <td>${r.id}</td><td>${r.name}</td><td>${r.username}</td><td>${r.role}</td><td>${r.active? "Ja":"Nej"}</td>
         <td><button data-edit="${r.id}">Ändra</button></td>
         <td><button data-del="${r.id}">Radera</button></td>
       </tr>`).join("")}

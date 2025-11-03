@@ -1,107 +1,91 @@
+// msalauth.js (drop-in)
 import { cca, scopes, roleMapping, defaultRole } from './msalConfig.js';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
-import { promisify } from 'util';
 
-const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_THIS_SECRET";
+const JWT_SECRET = process.env.JWT_SECRET || 'CHANGE_THIS_SECRET';
 
-// JWKS client for token validation (like your FastAPI implementation)
-const jwksClientInstance = jwksClient({
-  jwksUri: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/discovery/v2.0/keys`,
-  requestHeaders: {}, // Default headers
-  timeout: 30000, // Defaults to 30s
+// ==== REQUIRED ENV ====
+const TENANT_ID = process.env.AZURE_TENANT_ID || process.env.TENANT_ID;
+const CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID;
+// Your API's App ID URI (as set under "Expose an API" in Azure App Registration)
+const APP_AUDIENCE = 'api://eb9865fe-5d08-43ed-8ee9-6cad32b74981';
+
+if (!TENANT_ID) throw new Error('TENANT_ID/AZURE_TENANT_ID is missing');
+if (!CLIENT_ID) console.warn('⚠️ CLIENT_ID/AZURE_CLIENT_ID is missing (audience fallback still ok)');
+
+const VALID_AUDIENCES = [APP_AUDIENCE, CLIENT_ID].filter(Boolean);
+const VALID_ISSUERS  = [
+  `https://login.microsoftonline.com/${TENANT_ID}/v2.0`,
+  // Optionally accept legacy v1 issuer if needed:
+  `https://sts.windows.net/${TENANT_ID}/`
+];
+
+const jwks = jwksClient({
+  jwksUri: `https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys`,
   cache: true,
-  cacheMaxEntries: 5, // Default value
-  cacheMaxAge: 600000, // 10 minutes like your FastAPI cache
+  cacheMaxEntries: 5,
+  cacheMaxAge: 10 * 60 * 1000
 });
 
-const getKey = promisify(jwksClientInstance.getSigningKey.bind(jwksClientInstance));
+async function getSigningKey(kid) {
+  const key = await jwks.getSigningKey(kid);
+  return key.getPublicKey();
+}
 
-// Validate Microsoft access token (enhanced following implementation guide)
+// Validate Microsoft access token issued for YOUR API
 export async function validateAccessToken(accessToken) {
   try {
-    // 🔍 TEMPORARY: Log incoming token claims for debugging
-    try {
-      const decoded = jwt.decode(accessToken, { complete: true });
-      console.log('🔍 Incoming token claims:');
-      console.log('   Header kid=', decoded?.header?.kid);
-      console.log('   Claims preview:', {
-        aud: decoded?.payload?.aud,
-        iss: decoded?.payload?.iss,
-        tid: decoded?.payload?.tid,
-        scp: decoded?.payload?.scp,
-        roles: decoded?.payload?.roles
-      });
-    } catch (logError) {
-      console.log('⚠️ Could not decode token for logging:', logError.message);
-    }
-    
-    // Decode token header to get kid
-    const decodedToken = jwt.decode(accessToken, { complete: true });
-    
-    if (!decodedToken || !decodedToken.header || !decodedToken.header.kid) {
-      throw new Error('Invalid token structure');
-    }
-    
-    // Get signing key from JWKS
-    const key = await getKey(decodedToken.header.kid);
-    const signingKey = key.getPublicKey();
-    
-    // Define valid audiences and issuers
-    const clientId = process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID;
-    const validAudiences = [
-      clientId,
-      "api://eb9865fe-5d08-43ed-8ee9-6cad32b74981"  // App ID URI required
-    ].filter(Boolean);
-    
-    console.log('🔍 Expected audiences:', validAudiences);
-    
-    const validIssuers = [
-      `https://sts.windows.net/${process.env.AZURE_TENANT_ID}/`,
-      `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
-      `https://login.microsoftonline.com/${process.env.TENANT_ID}/`,
-      `https://login.microsoftonline.com/${process.env.TENANT_ID}/v2.0`
-    ].filter(Boolean);
-    
-    // Verify token with proper validation
-    const payload = jwt.verify(accessToken, signingKey, {
-      audience: validAudiences,
-      issuer: validIssuers,
-      algorithms: ['RS256'],
-      ignoreExpiration: false,
-      ignoreNotBefore: false
+    const decoded = jwt.decode(accessToken, { complete: true });
+    if (!decoded?.header?.kid) throw new Error('Invalid token (no kid)');
+
+    // Helpful diagnostics
+    const p = decoded.payload || {};
+    console.log('🔍 Incoming EXCHANGE token preview:', {
+      aud: p.aud, scp: p.scp, roles: p.roles, iss: p.iss, tid: p.tid
     });
-    
-    console.log('✅ Token validation successful for user:', payload.name || payload.preferred_username);
-    console.log('   Token audience:', payload.aud);
-    return payload;
-  } catch (error) {
-    console.error('❌ Token validation failed:', error.message);
-    if (error.message.includes('audience')) {
-      const decoded = jwt.decode(accessToken);
-      console.error('   Token audience was:', decoded?.aud);
-      console.error('   Expected audiences:', validAudiences);
+
+    // Sanity: must be our tenant
+    if (p.tid && p.tid !== TENANT_ID) {
+      throw new Error(`Wrong tenant: ${p.tid} (expected ${TENANT_ID})`);
     }
-    throw new Error(`Invalid access token: ${error.message}`);
+
+    const publicKey = await getSigningKey(decoded.header.kid);
+    const payload = jwt.verify(accessToken, publicKey, {
+      algorithms: ['RS256'],
+      audience: VALID_AUDIENCES,
+      issuer: VALID_ISSUERS
+    });
+
+    // Accept either scope "access" (delegated) OR app role (application permissions)
+    const scopes = (payload.scp || '').split(' ').filter(Boolean);
+    const roles  = payload.roles || [];
+
+    const hasRequiredScope = scopes.includes('access');
+    const hasAnyRole = Array.isArray(roles) && roles.length > 0;
+
+    if (!hasRequiredScope && !hasAnyRole) {
+      // If your design ALWAYS uses scope "access", keep only the scope check
+      throw new Error('Missing permission: requires scope "access" (or app role)');
+    }
+
+    return payload;
+  } catch (err) {
+    // DO NOT reference variables that are out of scope here
+    console.error('❌ validateAccessToken:', err.message);
+    // Best-effort extra hint
+    try {
+      const d = jwt.decode(accessToken) || {};
+      console.error('   Token had aud=', d.aud, 'iss=', d.iss, 'tid=', d.tid, 'scp=', d.scp);
+      console.error('   Expected audiences:', VALID_AUDIENCES);
+      console.error('   Accepted issuers:', VALID_ISSUERS);
+    } catch {}
+    throw new Error(`Invalid access token: ${err.message}`);
   }
 }
 
-// Exchange authorization code for tokens
-export async function exchangeCodeForTokens(code, redirectUri) {
-    try {
-        const tokenRequest = {
-            code: code,
-            scopes: scopes.graph,
-            redirectUri: redirectUri,
-        };
+// (unchanged) Exchange code, getUserInfo, getUserRoles, mapUserRole, createHRAToken, verifyToken, getAuthUrl...
 
-        const response = await cca.acquireTokenByCode(tokenRequest);
-        return response;
-    } catch (error) {
-        console.error('Error exchanging code for tokens:', error);
-        throw error;
-    }
-}
 
 // Get user info from Microsoft Graph or token claims
 export async function getUserInfo(accessToken) {

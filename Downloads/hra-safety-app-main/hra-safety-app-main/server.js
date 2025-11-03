@@ -1,3 +1,26 @@
+// ...existing code...
+// --- MSAL config endpoint: always build authority from tenantId ---
+app.get('/api/auth/msal-config', (req, res) => {
+  const clientId  = process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID;
+  const tenantId  = process.env.AZURE_TENANT_ID || process.env.TENANT_ID;
+  const appUrl    = process.env.APP_URL || `https://${req.headers.host}`;
+
+  if (!clientId || !tenantId) {
+    // Fail closed: front-end has a fallback, but better to set envs correctly
+    return res.json({});
+  }
+
+  const authority   = `https://login.microsoftonline.com/${tenantId}`;
+  const redirectUri = process.env.REDIRECT_URI || `${appUrl}/auth/callback`;
+
+  res.json({
+    clientId,
+    tenantId,
+    authority,
+    redirectUri,
+    cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+  });
+});
 import express from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
@@ -142,7 +165,7 @@ async function getGraphToken() {
 }
 
 // Hämta siteId + driveId 1 gång och cacha
-let cachedSiteId = null, cachedDriveId = null;
+// Removed stray hraRole declaration
 async function ensureSiteAndDrive() {
   const host = process.env.SPO_HOSTNAME;
   const sitePath = process.env.SPO_SITE_PATH;        // t.ex. "sites/TBAMAINTENANCE"
@@ -517,7 +540,7 @@ app.get("/api/auth/msal-url", async (req, res) => {
     if (!msalAuthModule) {
       return res.status(503).json({ error: 'MSAL authentication not configured' });
     }
-    const redirectUri = `${req.protocol}://${req.get('host')}/auth/callback`;
+    const redirectUri = req.query.redirectUri || '';
     const authUrl = await msalAuthModule.getAuthUrl(redirectUri);
     res.json({ authUrl });
   } catch (error) {
@@ -542,11 +565,11 @@ app.get("/auth/callback", async (req, res) => {
     const tokenResponse = await msalAuthModule.exchangeCodeForTokens(code, redirectUri);
     
     // Get user info and app roles
-    const userInfo = await msalAuthModule.getUserInfo(tokenResponse.accessToken);
-    const userRoles = msalAuthModule.getUserRoles(tokenResponse.accessToken);
+    // AFTER
+    const userRoles = await msalAuthModule.getUserRoles(tokenResponse.accessToken);
+
     
     // Map to HRA role
-    const hraRole = msalAuthModule.mapUserRole(userRoles);
     
     // Create or update user in database
     const existingUser = db.prepare("SELECT * FROM users WHERE username=?").get(userInfo.userPrincipalName);
@@ -623,12 +646,7 @@ app.post("/api/auth/msal-exchange", async (req, res) => {
     
     console.log('👤 User info:', { 
       name: userInfo.displayName, 
-      email: userInfo.userPrincipalName,
-      roles: userRoles 
     });
-    
-    // Map to HRA role
-    const hraRole = msalAuthModule.mapUserRole(userRoles);
     console.log('🎭 Mapped HRA role:', hraRole);
     
     // Create or update user in database
@@ -675,38 +693,7 @@ app.post("/api/auth/msal-exchange", async (req, res) => {
   }
 });
 
-// Get MSAL configuration for client
-app.get("/api/auth/msal-config", (req, res) => {
-  if (!msalAuthModule) {
-    return res.status(503).json({ error: 'MSAL authentication not configured' });
-  }
-  
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  const clientId = process.env.AZURE_CLIENT_ID || process.env.CLIENT_ID || 'eb9865fe-5d08-43ed-8ee9-6cad32b74981';
-  const tenantId = process.env.AZURE_TENANT_ID || process.env.TENANT_ID || '81fa766e-a349-4867-8bf4-ab35e250a08f';
-  
-  console.log('🔍 MSAL Config Debug:', {
-    clientId: clientId ? `${clientId.substring(0, 8)}...` : 'undefined',
-    tenantId: tenantId ? `${tenantId.substring(0, 8)}...` : 'undefined',
-    baseUrl,
-    authority: `https://login.microsoftonline.com/${tenantId}`
-  });
-  
-  if (!clientId || !tenantId) {
-    console.error('❌ Missing MSAL configuration:', { clientId: !!clientId, tenantId: !!tenantId });
-    return res.status(500).json({ 
-      error: 'Missing MSAL configuration',
-      details: 'AZURE_CLIENT_ID or AZURE_TENANT_ID not set'
-    });
-  }
-  
-  res.json({
-    clientId: clientId,
-    tenantId: tenantId,
-    authority: `https://login.microsoftonline.com/${tenantId}`,
-    redirectUri: baseUrl  // For popup auth, use the main page
-  });
-});
+
 
 // --- User management (Admin)
 app.get("/api/users", auth(), requireRole("admin"), (req, res) => {
@@ -740,7 +727,6 @@ app.put("/api/users/:id", auth(), requireRole("admin"), (req, res) => {
   `).run(name ?? u.name, role ?? u.role, active ? 1 : 0, hash, id);
   res.json({ ok: true });
 });
-
 app.delete("/api/users/:id", auth(), requireRole("admin"), (req, res) => {
   const id = +req.params.id;
   if (id === req.user.uid) return res.status(400).json({ error: "Kan inte radera dig själv" });

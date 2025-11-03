@@ -47,20 +47,33 @@ class MSALAuthService {
 
     async login() {
         if (!this.msalInstance) throw new Error('MSAL not initialized');
+        // 1) User login for account selection
+        const loginResp = await this.msalInstance.loginPopup({
+            scopes: ["openid", "profile", "email", "User.Read"],
+            prompt: "select_account"
+        });
+        if (!loginResp?.account) throw new Error('No account in login response');
+        this.account = loginResp.account;
+        this.msalInstance.setActiveAccount(loginResp.account);
+
+        // 2) Get **API** access token (NOT the Graph token)
+        const apiScopes = window.API_SCOPES || ["api://eb9865fe-5d08-43ed-8ee9-6cad32b74981/access"];
+        let apiTokenResp;
         try {
-            const loginRequest = {
-                scopes: ["User.Read", "openid", "profile", "email"],
-                prompt: "select_account"
-            };
-            const response = await this.msalInstance.loginPopup(loginRequest);
-            if (!response?.account) throw new Error('No account in login response');
-            this.account = response.account;
-            this.msalInstance.setActiveAccount(response.account);
-            await this.exchangeTokenForHRAAuth(response.accessToken);
-        } catch (error) {
-            console.error('Login failed:', error);
-            throw error;
+            apiTokenResp = await this.msalInstance.acquireTokenSilent({
+                scopes: apiScopes,
+                account: loginResp.account
+            });
+        } catch (e) {
+            // Consent/first-run fallback
+            apiTokenResp = await this.msalInstance.acquireTokenPopup({
+                scopes: apiScopes
+            });
         }
+        if (!apiTokenResp?.accessToken) throw new Error('Failed to obtain API token');
+
+        // 3) Exchange **API token** with backend
+        await this.exchangeTokenForHRAAuth(apiTokenResp.accessToken);
     }
 
     async exchangeTokenForHRAAuth(accessToken) {
